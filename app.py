@@ -75,26 +75,21 @@ def filtrar_alumnos_no_matriculados(df_recuento_matriculaciones):
 def generar_df_limpio(df_recuento_matriculaciones, df_alumnos_no_matriculados):
     df_limpio = df_recuento_matriculaciones[~df_recuento_matriculaciones['NIF'].isin(df_alumnos_no_matriculados['NIF'])].copy()
     
-    # Seleccionar ambas versiones de TELÉFONO y E-MAIL, para que aparezcan dos veces
-    df_limpio['TELÉFONO_1'] = df_limpio['TELÉFONO']
-    df_limpio['TELÉFONO_2'] = df_limpio['TELÉFONO.1']
-    df_limpio['E-MAIL_1'] = df_limpio['E-MAIL']
-    df_limpio['E-MAIL_2'] = df_limpio['E-MAIL.1']
-
-    # Seleccionar columnas en el orden deseado, manteniendo TELÉFONO y E-MAIL dos veces
-    df_limpio = df_limpio[['NIF', 'NOMBRE_x', 'APELLIDO 1º', 'APELLIDO 2º', 'TELÉFONO_1', 'TELÉFONO_2', 'E-MAIL_1', 'E-MAIL_2', 'NISS', 'F. NACIMIENTO', 'SEXO', 'DISCAPACITADO', 'NIVEL DE ESTUDIOS', 'CATEGORÍA PROFESIONAL', 'GRUPO DE COTIZACIÓN', 'CIF']]
+    # Mantener las columnas TELÉFONO y E-MAIL duplicadas
+    df_limpio['TELÉFONO 1'] = df_limpio['TELÉFONO']
+    df_limpio['E-MAIL 1'] = df_limpio['E-MAIL']
     
-    # Renombrar las columnas para que ambas versiones se llamen TELÉFONO y E-MAIL
+    # Seleccionar las columnas en el orden requerido
+    df_limpio = df_limpio[['NIF', 'NOMBRE_x', 'APELLIDO 1º', 'APELLIDO 2º', 'TELÉFONO', 'TELÉFONO 1', 'E-MAIL', 'E-MAIL 1', 'NISS', 'F. NACIMIENTO', 'SEXO', 'DISCAPACITADO', 'NIVEL DE ESTUDIOS', 'CATEGORÍA PROFESIONAL', 'GRUPO DE COTIZACIÓN', 'CIF']]
+    
+    # Cambiar los nombres de columnas a los nombres finales que se requieren
     df_limpio.columns = ['NIF', 'NOMBRE', 'APELLIDO 1º', 'APELLIDO 2º', 'TELÉFONO', 'TELÉFONO', 'E-MAIL', 'E-MAIL', 'NISS', 'F. NACIMIENTO', 'SEXO', 'DISCAPACITADO', 'NIVEL DE ESTUDIOS', 'CATEGORÍA PROFESIONAL', 'GRUPO DE COTIZACIÓN', 'CIF']
     
-    # Eliminar duplicados
     df_limpio = df_limpio.drop_duplicates()
-    
-    # Mostrar el DataFrame limpio
     st.write("DataFrame limpio generado exitosamente. Primeras filas del resultado:")
     st.dataframe(df_limpio.head())
-    
     return df_limpio
+
 
 # Función para generar el Excel
 def generar_excel(df_limpio, df_alumnos_no_matriculados, es_bonificada):
