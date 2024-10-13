@@ -83,7 +83,7 @@ def generar_df_limpio(df_recuento_matriculaciones, df_alumnos_no_matriculados):
     df_limpio = df_limpio[['NIF', 'NOMBRE_x', 'APELLIDO 1º', 'APELLIDO 2º', 'TELÉFONO', 'TELÉFONO_TEMP', 'E-MAIL', 'E-MAIL_TEMP', 'NISS', 'F. NACIMIENTO', 'SEXO', 'DISCAPACITADO', 'NIVEL DE ESTUDIOS', 'CATEGORÍA PROFESIONAL', 'GRUPO DE COTIZACIÓN', 'CIF']]
     
     # Renombrar las columnas temporales a TELÉFONO y E-MAIL para que aparezcan dos veces
-    df_limpio.columns = ['NIF', 'NOMBRE', 'APELLIDO 1º', 'APELLIDO 2º', 'TELÉFONO', 'TELÉFONO', 'E-MAIL', 'E-MAIL', 'NISS', 'F. NACIMIENTO', 'SEXO', 'DISCAPACITADO', 'NIVEL DE ESTUDIOS', 'CATEGORÍA PROFESIONAL', 'GRUPO DE COTIZACIÓN', 'CIF']
+    df_limpio.columns = ['NIF', 'NOMBRE', 'APELLIDO 1º', 'APELLIDO 2º', 'TELÉFONO', 'TELÉFONO ', 'E-MAIL', 'E-MAIL ', 'NISS', 'F. NACIMIENTO', 'SEXO', 'DISCAPACITADO', 'NIVEL DE ESTUDIOS', 'CATEGORÍA PROFESIONAL', 'GRUPO DE COTIZACIÓN', 'CIF']
     
     # Eliminar filas duplicadas si existen
     df_limpio = df_limpio.drop_duplicates()
