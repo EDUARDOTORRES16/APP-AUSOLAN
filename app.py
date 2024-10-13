@@ -1,130 +1,133 @@
 import streamlit as st
 import pandas as pd
 import zipfile
-import io
+import os
+import tempfile
 
 # Función para cargar el archivo de referencia
-def cargar_archivo_referencia():
-    uploaded_file = st.file_uploader("Carga el archivo de referencia (df_referencia)", type=["xlsx", "xls"])
+def cargar_df_referencia():
+    uploaded_file = st.file_uploader("Cargar archivo de referencia (XLSX)", type=["xlsx", "xls"])
     if uploaded_file:
         df_referencia = pd.read_excel(uploaded_file)
+        st.write("Archivo de referencia cargado exitosamente:")
+        st.dataframe(df_referencia.head())  # Mostrar las primeras filas
         return df_referencia
     return None
 
 # Función para cargar el archivo del cliente
-def cargar_archivo_cliente():
-    uploaded_file = st.file_uploader("Carga el archivo del cliente (df_cliente)", type=["xlsx", "xls"])
+def cargar_df_cliente():
+    uploaded_file = st.file_uploader("Cargar archivo del cliente (XLSX)", type=["xlsx", "xls"])
     if uploaded_file:
         df_cliente = pd.read_excel(uploaded_file)
+        st.write("Archivo del cliente cargado exitosamente:")
+        st.dataframe(df_cliente.head())  # Mostrar las primeras filas
         return df_cliente
     return None
 
-# Función para realizar el cruce y filtros
-def realizar_cruce_filtros(df_referencia, df_cliente):
-    # Cruce de datos por NIF
-    df_recuento = pd.merge(df_cliente, df_referencia, how="left", left_on="NIF", right_on="NIF")
+# Función para realizar el cruce de datos
+def cruce_datos(df_referencia, df_cliente):
+    df_cruce = pd.merge(df_cliente, df_referencia, on="NIF", how="left")
+    df_cruce['conteo de matriculaciones'] = df_cruce.groupby('NIF')['CURSO1'].transform('count')
+    st.write("Cruce de datos realizado exitosamente. Primeras filas del resultado:")
+    st.dataframe(df_cruce.head())
+    return df_cruce
 
-    # Agregar la columna de conteo de matriculaciones
-    df_recuento["conteo de matriculaciones"] = df_recuento.groupby("NIF")["CURSO1"].transform("count")
+# Filtrar alumnos no matriculados
+def filtrar_alumnos_no_matriculados(df_recuento_matriculaciones):
+    motivos_exclusion = []
 
-    # Filtrar alumnos no aptos
-    df_alumnos_no_matriculados = df_recuento[
-        (df_recuento["conteo de matriculaciones"] > 3) |
-        (df_recuento["CURSO"] == 1) |
-        (~df_recuento["E-MAIL"].str.contains("@", na=False)) |
-        (df_recuento["APELLIDO 1º"].isna()) |
-        (df_recuento["TELÉFONO"].isna()) |
-        (~df_recuento["CIF"].isin([
+    filtros = [
+        df_recuento_matriculaciones['conteo de matriculaciones'] > 3,
+        df_recuento_matriculaciones['CURSO'] == 1,
+        ~df_recuento_matriculaciones['E-MAIL'].str.contains('@', na=False),
+        ~df_recuento_matriculaciones['NIF'].str.match(r'^[XYZ\d]\d{7}[A-Z]$', na=False),
+        ~df_recuento_matriculaciones['CIF'].isin([
             "B62504105", "B96740659", "F20032553", "B48419378", "B01277268",
             "A78538774", "B43642222", "B55531495", "B20627196", "B09065236",
             "B81958134"
-        ]))
+        ]),
+        df_recuento_matriculaciones['APELLIDO 1º'].isna(),
+        df_recuento_matriculaciones['TELÉFONO'].isna()
     ]
 
-    # Agregar columna de motivo de no matriculación
-    condiciones = [
-        df_recuento["conteo de matriculaciones"] > 3,
-        df_recuento["CURSO"] == 1,
-        ~df_recuento["E-MAIL"].str.contains("@", na=False),
-        df_recuento["APELLIDO 1º"].isna(),
-        df_recuento["TELÉFONO"].isna(),
-        ~df_recuento["CIF"].isin([
-            "B62504105", "B96740659", "F20032553", "B48419378", "B01277268",
-            "A78538774", "B43642222", "B55531495", "B20627196", "B09065236",
-            "B81958134"
-        ])
-    ]
     motivos = [
         "alumno matriculado más de 3 veces",
         "alumno apto",
         "correo incorrecto",
+        "NIF incorrecto",
+        "CIF incorrecto",
         "usuario debe tener por lo menos un apellido",
-        "usuario debe tener por lo menos un teléfono",
-        "CIF incorrecto"
+        "usuario debe tener por lo menos un teléfono"
     ]
-    df_alumnos_no_matriculados["motivo"] = pd.Series(motivos).where(pd.Series(condiciones).any())
 
-    # Filtrar los aptos
-    df_alumnos_para_matricular = df_recuento[~df_recuento.index.isin(df_alumnos_no_matriculados.index)]
+    df_alumnos_no_matriculados = pd.DataFrame()
+    for filtro, motivo in zip(filtros, motivos):
+        excluidos = df_recuento_matriculaciones[filtro].copy()
+        excluidos['razon_exclusion'] = motivo
+        df_alumnos_no_matriculados = pd.concat([df_alumnos_no_matriculados, excluidos])
 
-    # Copiar valores en columnas duplicadas de Teléfono y Email
-    for columna in ["TELÉFONO", "E-MAIL"]:
-        if df_alumnos_para_matricular[f"{columna} 1"].isna().any():
-            df_alumnos_para_matricular[f"{columna} 1"].fillna(df_alumnos_para_matricular[columna], inplace=True)
-        if df_alumnos_para_matricular[columna].isna().any():
-            df_alumnos_para_matricular[columna].fillna(df_alumnos_para_matricular[f"{columna} 1"], inplace=True)
+    df_alumnos_no_matriculados = df_alumnos_no_matriculados.drop_duplicates()
+    st.write("Alumnos no matriculados generados exitosamente. Primeras filas del resultado:")
+    st.dataframe(df_alumnos_no_matriculados.head())
+    return df_alumnos_no_matriculados
 
-    return df_alumnos_para_matricular, df_alumnos_no_matriculados
+# Generar el DataFrame limpio
+def generar_df_limpio(df_recuento_matriculaciones, df_alumnos_no_matriculados):
+    df_limpio = df_recuento_matriculaciones[~df_recuento_matriculaciones['NIF'].isin(df_alumnos_no_matriculados['NIF'])].copy()
+    df_limpio['TELÉFONO'] = df_limpio['TELÉFONO'].fillna(df_limpio['TELÉFONO.1'])
+    df_limpio['E-MAIL'] = df_limpio['E-MAIL'].fillna(df_limpio['E-MAIL.1'])
+    df_limpio = df_limpio[['NIF', 'NOMBRE_x', 'APELLIDO 1º', 'APELLIDO 2º', 'TELÉFONO', 'E-MAIL', 'NISS', 'F. NACIMIENTO', 'SEXO', 'DISCAPACITADO', 'NIVEL DE ESTUDIOS', 'CATEGORÍA PROFESIONAL', 'GRUPO DE COTIZACIÓN', 'CIF']]
+    df_limpio.columns = ['NIF', 'NOMBRE', 'APELLIDO 1º', 'APELLIDO 2º', 'TELÉFONO', 'E-MAIL', 'NISS', 'F. NACIMIENTO', 'SEXO', 'DISCAPACITADO', 'NIVEL DE ESTUDIOS', 'CATEGORÍA PROFESIONAL', 'GRUPO DE COTIZACIÓN', 'CIF']
+    df_limpio = df_limpio.drop_duplicates()
+    st.write("DataFrame limpio generado exitosamente. Primeras filas del resultado:")
+    st.dataframe(df_limpio.head())
+    return df_limpio
 
-# Función para dividir el dataframe en partes
-def dividir_y_guardar(df, nombre_base, tamanio):
-    buffers = []
-    for i in range(0, len(df), tamanio):
-        df_part = df.iloc[i:i + tamanio]
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
-            df_part.to_excel(writer, index=False)
-        buffers.append(buffer)
-    return buffers
+# Función para generar el Excel
+def generar_excel(df_limpio, df_alumnos_no_matriculados, es_bonificada):
+    tamaño_bloque = 80 if es_bonificada == 'Bonificada' else 300
+    num_filas = df_limpio.shape[0]
+    num_partes = (num_filas // tamaño_bloque) + (1 if num_filas % tamaño_bloque != 0 else 0)
 
-# Interfaz principal de la app
+    # Crear archivos temporales
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # Dividir y guardar cada parte en un archivo Excel separado
+        for i in range(num_partes):
+            inicio = i * tamaño_bloque
+            fin = inicio + tamaño_bloque
+            df_parte = df_limpio.iloc[inicio:fin]
+            df_parte.to_excel(os.path.join(tmpdirname, f'df_limpio_parte_{i+1}.xlsx'), index=False)
+
+        # Guardar el archivo de alumnos no matriculados
+        df_alumnos_no_matriculados.to_excel(os.path.join(tmpdirname, 'df_alumnos_no_matriculados.xlsx'), index=False)
+
+        # Crear un archivo ZIP
+        zip_path = os.path.join(tmpdirname, 'archivos_alumnos.zip')
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for i in range(num_partes):
+                zipf.write(os.path.join(tmpdirname, f'df_limpio_parte_{i+1}.xlsx'), arcname=f'df_limpio_parte_{i+1}.xlsx')
+            zipf.write(os.path.join(tmpdirname, 'df_alumnos_no_matriculados.xlsx'), arcname='df_alumnos_no_matriculados.xlsx')
+
+        # Descargar el archivo ZIP
+        with open(zip_path, "rb") as f:
+            st.download_button("Descargar archivos", f.read(), "archivos_alumnos.zip", "application/zip")
+
+# Interfaz principal
 def main():
-    st.title("App de Procesamiento de Datos")
+    st.title("Aplicación de Procesamiento de Datos")
 
-    # Paso 1: Cargar archivos
-    df_referencia = cargar_archivo_referencia()
-    df_cliente = cargar_archivo_cliente()
+    df_referencia = cargar_df_referencia()
+    df_cliente = cargar_df_cliente()
 
-    # Si se han cargado ambos archivos
     if df_referencia is not None and df_cliente is not None:
-        # Realizar el cruce de datos y filtros
-        df_para_matricular, df_no_matriculados = realizar_cruce_filtros(df_referencia, df_cliente)
+        df_recuento_matriculaciones = cruce_datos(df_referencia, df_cliente)
+        df_alumnos_no_matriculados = filtrar_alumnos_no_matriculados(df_recuento_matriculaciones)
 
-        # Selección de tipo de formación
-        tipo_formacion = st.selectbox("¿La formación es bonificada o privada?", ["Bonificada", "Privada"])
+        es_bonificada = st.radio("¿La formación es bonificada o privada?", ['Bonificada', 'Privada'])
 
-        # Tamaño por lote
-        tamanio = 80 if tipo_formacion == "Bonificada" else 300
-
-        # Dividir el dataframe para matricular
-        buffers_para_matricular = dividir_y_guardar(df_para_matricular, "df_limpio", tamanio)
-        buffers_no_matriculados = dividir_y_guardar(df_no_matriculados, "df_alumnos_no_matriculados", tamanio)
-
-        # Crear archivo zip
-        with io.BytesIO() as zip_buffer:
-            with zipfile.ZipFile(zip_buffer, "w") as zf:
-                for idx, buffer in enumerate(buffers_para_matricular):
-                    zf.writestr(f"df_limpio_parte_{idx+1}.xlsx", buffer.getvalue())
-                for idx, buffer in enumerate(buffers_no_matriculados):
-                    zf.writestr(f"df_alumnos_no_matriculados_parte_{idx+1}.xlsx", buffer.getvalue())
-
-            # Descargar archivo zip
-            st.download_button(
-                "Descargar archivos",
-                zip_buffer.getvalue(),
-                "resultados.zip",
-                "application/zip"
-            )
+        if st.button("Generar archivos"):
+            df_limpio = generar_df_limpio(df_recuento_matriculaciones, df_alumnos_no_matriculados)
+            generar_excel(df_limpio, df_alumnos_no_matriculados, es_bonificada)
 
 if __name__ == "__main__":
     main()
