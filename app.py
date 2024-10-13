@@ -75,20 +75,24 @@ def filtrar_alumnos_no_matriculados(df_recuento_matriculaciones):
 def generar_df_limpio(df_recuento_matriculaciones, df_alumnos_no_matriculados):
     df_limpio = df_recuento_matriculaciones[~df_recuento_matriculaciones['NIF'].isin(df_alumnos_no_matriculados['NIF'])].copy()
     
-    # Mantener las columnas TELÉFONO y E-MAIL duplicadas
-    df_limpio['TELÉFONO 1'] = df_limpio['TELÉFONO']
-    df_limpio['E-MAIL 1'] = df_limpio['E-MAIL']
+    # Crear columnas temporales para TELÉFONO y E-MAIL
+    df_limpio['TELÉFONO_TEMP'] = df_limpio['TELÉFONO']
+    df_limpio['E-MAIL_TEMP'] = df_limpio['E-MAIL']
     
     # Seleccionar las columnas en el orden requerido
-    df_limpio = df_limpio[['NIF', 'NOMBRE_x', 'APELLIDO 1º', 'APELLIDO 2º', 'TELÉFONO', 'TELÉFONO 1', 'E-MAIL', 'E-MAIL 1', 'NISS', 'F. NACIMIENTO', 'SEXO', 'DISCAPACITADO', 'NIVEL DE ESTUDIOS', 'CATEGORÍA PROFESIONAL', 'GRUPO DE COTIZACIÓN', 'CIF']]
+    df_limpio = df_limpio[['NIF', 'NOMBRE_x', 'APELLIDO 1º', 'APELLIDO 2º', 'TELÉFONO', 'TELÉFONO_TEMP', 'E-MAIL', 'E-MAIL_TEMP', 'NISS', 'F. NACIMIENTO', 'SEXO', 'DISCAPACITADO', 'NIVEL DE ESTUDIOS', 'CATEGORÍA PROFESIONAL', 'GRUPO DE COTIZACIÓN', 'CIF']]
     
-    # Cambiar los nombres de columnas a los nombres finales que se requieren
+    # Renombrar las columnas temporales a TELÉFONO y E-MAIL para que aparezcan dos veces
     df_limpio.columns = ['NIF', 'NOMBRE', 'APELLIDO 1º', 'APELLIDO 2º', 'TELÉFONO', 'TELÉFONO', 'E-MAIL', 'E-MAIL', 'NISS', 'F. NACIMIENTO', 'SEXO', 'DISCAPACITADO', 'NIVEL DE ESTUDIOS', 'CATEGORÍA PROFESIONAL', 'GRUPO DE COTIZACIÓN', 'CIF']
     
+    # Eliminar filas duplicadas si existen
     df_limpio = df_limpio.drop_duplicates()
+    
+    # Mostrar el DataFrame resultante
     st.write("DataFrame limpio generado exitosamente. Primeras filas del resultado:")
     st.dataframe(df_limpio.head())
     return df_limpio
+
 
 
 # Función para generar el Excel
